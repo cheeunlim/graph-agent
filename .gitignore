@@ -1,0 +1,17 @@
+# Python virtual environments & build artifacts
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.tox/
+
+# Sensitive local configurations (Custom project IDs and API Keys)
+.env
+**/.env
+
+# ADK (Agent Development Kit) runtime logs & caching directories
+.adk/
+*.log
