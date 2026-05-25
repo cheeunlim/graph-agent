@@ -4,7 +4,7 @@
 
 이 에이전트는 Google Cloud의 지식그래프 데이터베이스인 **Cloud Spanner Graph**를 기반으로 작동합니다. 사용자가 입력한 자연어 질문을 효율적인 GQL/SQL 쿼리로 자동 변환하고 실행하여, 복잡한 다대다(N:M) 관계 데이터를 깊이 있게 분석하고 정확한 답변을 찾아냅니다.
 
-GCP 프로젝트 정보와 Spanner 리소스 경로만 환경 변수로 간단히 등록하면, 로컬 테스트부터 Google Cloud의 완전 관리형 에이전트 호스팅 서비스인 **Vertex AI Agent Engine (Reasoning Engine)** 배포까지 한 번에 완료할 수 있습니다.
+GCP 프로젝트 정보와 Spanner 리소스 경로만 환경 변수로 간단히 등록하면, 로컬 테스트부터 Google Cloud의 완전 관리형 에이전트 호스팅 서비스인 **Vertex AI Agent Engine** 배포까지 한 번에 완료할 수 있습니다.
 
 ---
 
@@ -95,8 +95,8 @@ adk run graph_agent
 
 ### **방법 B. 내장 웹 플레이그라운드 UI 실행 (`adk web`)**
 > [!NOTE]
-> **웹 UI용 프런트엔드 코드가 따로 필요한가요?**
-> 아니요, 그렇지 않습니다. 이 저장소에는 웹 화면을 렌더링하기 위한 별도의 코드가 없습니다. 
+> **웹 UI용 프런트엔드 코드가 따로 필요한가요?** \
+> 이 저장소에는 웹 화면을 렌더링하기 위한 별도의 코드가 없습니다. 
 > `google-adk` 패키지 자체에 대화형 채팅 플레이그라운드가 내장되어 있어, `adk web .` 명령어 한 줄로 편리하고 세련된 디버깅 화면을 띄워 로컬에서 바로 테스트할 수 있습니다.
 
 ```bash
@@ -109,7 +109,7 @@ adk web .
 
 ## 🚢 STEP 4. Vertex AI Agent Engine에 클라우드 배포
 
-로컬 테스트 결과가 만족스럽다면, 이제 Google Cloud의 완전 관리형 서버리스 에이전트 실행 환경인 **Vertex AI Agent Engine (Reasoning Engine)**으로 배포합니다. 
+로컬 테스트 결과가 만족스럽다면, 이제 Google Cloud의 완전 관리형 서버리스 에이전트 실행 환경인 **Vertex AI Agent Engine**으로 배포합니다. 
 
 배포가 완료되면 클라우드 자산(GCP Resource)으로 안전하게 등록되며, 기존 애플리케이션이나 다른 대외 시스템에서 안정적인 REST API 형태로 에이전트를 손쉽게 호출하고 연계할 수 있습니다.
 
