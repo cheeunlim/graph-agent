@@ -75,9 +75,9 @@ pip install google-adk
 
    * **`graph_agent/.env` 파일 작성 예시**:
      ```env
-     GOOGLE_CLOUD_PROJECT="내-GCP-프로젝트-ID"
-     SPANNER_INSTANCE_ID="내-Spanner-인스턴스-ID"
-     SPANNER_DATABASE_ID="내-Spanner-데이터베이스-ID"
+     GOOGLE_CLOUD_PROJECT="my-GCP-project-ID"
+     SPANNER_INSTANCE_ID="my-spanner-instance-ID"
+     SPANNER_DATABASE_ID="my-spanner-db-ID"
      ```
 
 ---
@@ -115,8 +115,8 @@ adk web .
 
 ```bash
 adk deploy agent_engine \
-  --project=[내_GCP_프로젝트_ID] \
-  --region=[배포할_리전] \
+  --project=[GCP_Project_ID] \
+  --region=[deploying-region] \
   --display_name="TheLook-Graph-Agent" \
   graph_agent
 ```
