@@ -10,9 +10,22 @@ from .tools import execute_spanner_query
 from .prompts import get_instruction
 
 # Dynamically load GCP resources via environment variables
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "krkg-demo")
-INSTANCE_ID = os.environ.get("SPANNER_INSTANCE_ID", "kg-changseop")
-DATABASE_ID = os.environ.get("SPANNER_DATABASE_ID", "ecommerce2")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+INSTANCE_ID = os.environ.get("SPANNER_INSTANCE_ID")
+DATABASE_ID = os.environ.get("SPANNER_DATABASE_ID")
+
+if not PROJECT_ID or not INSTANCE_ID or not DATABASE_ID:
+    missing_vars = [
+        var_name for var_name, var_val in [
+            ("GOOGLE_CLOUD_PROJECT", PROJECT_ID),
+            ("SPANNER_INSTANCE_ID", INSTANCE_ID),
+            ("SPANNER_DATABASE_ID", DATABASE_ID)
+        ] if not var_val
+    ]
+    raise ValueError(
+        f"Missing required environment variable(s): {', '.join(missing_vars)}. "
+        "Please set them in your environment or .env file."
+    )
 
 class GlobalGemini(Gemini):
     @cached_property
