@@ -51,67 +51,47 @@ FEW_SHOT_EXAMPLES = r"""
 [Example 1: 특정 정책의 세부 조건 조회 (U2G 단독)]
 Q: "단순 변심으로 인한 반품 시 환불 기준이 어떻게 되나요?"
 SQL:
-GRAPH U2G
-MATCH (p:Policy)
-WHERE p.document_title LIKE '%반품%' OR p.name LIKE '%반품%'
-RETURN p.simple_remorse, p.refund_basis, p.validity_period
+SELECT name, scenario_description, returnPolicy_changeOfMind
+FROM GRAPH_TABLE(U2G
+    MATCH (o:`Order`)
+    WHERE o.scenario_description LIKE '%변심%'
+    COLUMNS (o.name AS name, o.scenario_description AS scenario_description, o.returnPolicy_changeOfMind AS returnPolicy_changeOfMind)
+)
+LIMIT 1
 
 [Example 2: 정책과 규칙 연관 조회 (U2G 단독)]
-Q: "반품 정책에는 어떤 세부 규칙들이 연결되어 있나요?"
--- CRITICAL: Spanner Graph에서 하나의 테이블이 여러 엣지 정의에 사용될 때 라벨 뒤에 숫자가 붙을 수 있습니다. (예: HAS_RULE_1)
+Q: "부분 반품 시 결제 및 환불 타임라인 정책을 연결해서 알려줘"
 SQL:
 SELECT * FROM GRAPH_TABLE(U2G
-    MATCH (p:Policy)-[:HAS_RULE_1]->(r:Rule)
-    WHERE p.document_title LIKE '%반품%' OR p.name LIKE '%반품%'
-    COLUMNS (p.name AS policy_name, r.name AS rule_name, r.details AS rule_details)
+    MATCH (p:Payment)-[:settles]->(o:`Order`)
+    WHERE o.scenario_description LIKE '%부분%반품%'
+    COLUMNS (o.name AS order_scenario, o.status_flow AS status_flow, p.refund_details AS refund_details, p.refundTimeline AS refund_timeline)
 )
+LIMIT 1
 
-[Example 3: R2G(주문)와 U2G(혜택) 결합 조회 (하이브리드)]
-Q: "반품한 고객 중 무료 혜택 대상자가 누구인지 확인해줘"
+[Example 3: R2G(주문 트랜잭션)와 U2G(반품 규정) 결합 조회 (하이브리드)]
+Q: "실제 반품 처리 완료된 유저 목록과 부분 반품 환불 정책을 요약해줘"
 SQL:
-WITH FrequentCustomers AS (
-     SELECT 
-         user_id,
-         user_name,
-         COUNT(order_id) AS order_cnt,
-         SUM(sale_price) AS total_spent
-     FROM GRAPH_TABLE(R2G
-         MATCH (u:users)-[:places]-(o:orders)-[:contains_item]-(oi:inventory_items)
-         RETURN 
-            u.id AS user_id,
-            u.email AS user_name, 
-            o.order_id AS order_id, 
-            oi.cost AS sale_price
-     )
-     GROUP BY user_id, user_name
-     HAVING COUNT(order_id) >= 1
- ),
- TierInfo AS (
-     SELECT *
-     FROM GRAPH_TABLE(U2G
-         MATCH (t:MembershipTier)-[:HAS_BENEFIT]->(b:Benefit)
-         RETURN 
-            t.name AS tier_name, 
-            b.description AS benefit_desc
-     )
- ),
-R2GU2G AS (
-    SELECT 
-        c.user_id,
-        c.user_name,
-        t.benefit_desc
-    FROM FrequentCustomers c
-    JOIN TierInfo t ON (
-        (c.total_spent >= 500 AND t.tier_name = 'PLATINUM') OR
-        (c.total_spent >= 300 AND c.total_spent < 400 AND t.tier_name = 'GOLD') OR
-        (c.total_spent >= 200 AND c.total_spent < 300 AND t.tier_name = 'SILVER') OR
-        (c.total_spent < 200 AND t.tier_name = 'BRONZE')
+WITH ReturnedUsers AS (
+    SELECT DISTINCT u_id, email, status
+    FROM GRAPH_TABLE(R2G
+        MATCH (u:users)-[:places]->(o:orders)
+        WHERE o.status = 'Returned'
+        COLUMNS (u.id AS u_id, u.email AS email, o.status AS status)
     )
-  )
-SELECT a.user_id, b.user_name, benefit_desc
-FROM orders a
-JOIN R2GU2G AS b ON a.user_id = b.user_id  
-WHERE status LIKE "%Returned%" AND b.benefit_desc LIKE "%무료%"
+),
+PartialReturnRefundPolicy AS (
+    SELECT *
+    FROM GRAPH_TABLE(U2G
+        MATCH (p:Payment)-[:settles]->(o:`Order`)
+        WHERE o.scenario_description LIKE '%부분%반품%'
+        COLUMNS (o.name AS scenario, o.partial_return_logic AS partial_return_logic, p.refund_details AS refund_details)
+    )
+)
+SELECT u.email, p.scenario, p.partial_return_logic, p.refund_details
+FROM ReturnedUsers u
+CROSS JOIN PartialReturnRefundPolicy p
+LIMIT 5
 """
 
 QUERY_GENERATOR_INSTRUCTION = """
@@ -124,17 +104,18 @@ QUERY_GENERATOR_INSTRUCTION = """
     4. **CRITICAL (DO NOT IGNORE):** Your ONLY job is to pass the result back. You MUST return the EXACT RAW STRING (including [EXECUTED_QUERY] and [DATA_RESULT]) produced by the tool. DO NOT add conversational text. DO NOT summarize.
 
     ### Core Architecture (Dual-Graph Hybrid)
-    1. **`R2G`**: Relational data mapping to nodes (e.g., `users`, `orders`, `inventory_items`). Use for transaction and user data.
-    2. **`U2G`**: Extracted policy and process data (e.g., `Policy`, `Rule`, `Process`, `MembershipTier`). Use for business rules and guidelines.
+    1. **`R2G`**: Relational transaction and user logs property graph.
+    2. **`U2G`**: Customer policies, order processing, delivery, and payment guidelines property graph.
+    * **WARNING:** Only the graph names `R2G` and `U2G` are fixed. All Node labels, Edge labels, and Property names are dynamic and will change across environments. You MUST dynamically parse them from the `Schema (Raw Spanner DDL)` section below before writing any query.
 
     ### Query Generation Guidelines & Trap Avoidance:
-    1. **Edge Aliasing Trap (CRITICAL):** In Spanner Graph, when the same physical table is used for multiple edge definitions, the labels in the graph might have numbers appended (e.g., `HAS_RULE_1` instead of `HAS_RULE`). Always check the DDL for the exact `LABEL` name specified in the `EDGE TABLES` section.
-       - In `U2G`, the edge `Policy -> Rule` is defined with the label `HAS_RULE_1`.
-       - In `U2G`, the edge `MembershipTier -> Benefit` is defined with the label `HAS_BENEFIT`.
-    2. **Terminology Mapping:** 
-       - "환불" -> `orders.status LIKE '%Returned%'`
-       - "무료" -> `benefit_desc LIKE '%무료%'`
-       - **Fuzzy Matching for Compounds (CRITICAL):** When searching for compound nouns (e.g., "키즈워치", "데이터무제한"), ALWAYS insert `%` between the words to catch spaced variations in the database. (e.g., `LIKE '%키즈%워치%'`).
+    1. **Dynamic Node/Edge Reference:**
+       - Inspect the `NODE TABLES` and `EDGE TABLES` sections in the active Spanner DDL to identify the correct node labels (e.g. `Customer`, `Delivery`, `Order`, `Payment`, `Product` etc.) and edge labels (e.g. `places`, `fulfills`, `settles`, `contains` etc.).
+       - Note: If a node table or label is named `Order` (or any other SQL reserved keyword), it must be enclosed in backticks (e.g. `o:`Order``) in Spanner GoogleSQL GQL queries.
+       - NEVER use or match node labels like `Policy` unless they are explicitly defined under the active property graphs in the DDL below.
+    2. **Terminology Mapping:**
+       - "환불" -> `orders.status LIKE '%Returned%'` or `Payment.refund_details`
+       - **Fuzzy Matching for Compounds (CRITICAL):** When searching for compound nouns, ALWAYS insert `%` between the words to catch spaced variations in the database. (e.g., `LIKE '%부분%반품%'`).
     3. **Multiple Node Matching (AND Condition):** If a user wants to match multiple nodes of the same label connected to the same source node, you MUST define two separate node aliases connected to the same source node.
        - CORRECT: `MATCH (p)-[]->(m1), (p)-[]->(m2) WHERE m1.name = 'A' AND m2.name = 'B'`
        - INCORRECT: `MATCH (p)-[]->(m) WHERE m.name = 'A' AND m.name = 'B'` (This will always return empty).

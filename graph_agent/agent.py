@@ -37,30 +37,35 @@ def get_spanner_ddl():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     cache_file = os.path.join(dir_path, "schema.ddl")
     
-    # 1. Prioritize reading from the local cached DDL file to prevent Spanner metadata query explosion
-    if os.path.exists(cache_file):
-        print(f"Loading DDL from cache file: {cache_file}")
-        with open(cache_file, "r", encoding="utf-8") as f:
-            return f.read()
-            
-    # 2. Only fetch fresh DDL if cache file does not exist
+    # 1. ALWAYS prioritize fetching fresh, live DDL from Spanner database to guarantee 100% dynamic correctness
     try:
-        print("Fetching fresh DDL from Spanner database (automatic update)...")
+        print("Fetching fresh, live DDL from Spanner database...")
         from .tools import get_spanner_client_and_db
         _, database = get_spanner_client_and_db()
         database.reload()
         ddl_statements = database.ddl_statements
         ddl_text = ";\n".join(ddl_statements)
         
-        # Save/update local cache file
-        with open(cache_file, "w", encoding="utf-8") as f:
-            f.write(ddl_text)
-        print(f"Successfully updated schema cache: {cache_file}")
+        # Update local backup file for offline/fallback use
+        try:
+            with open(cache_file, "w", encoding="utf-8") as f:
+                f.write(ddl_text)
+            print(f"Successfully updated local schema backup: {cache_file}")
+        except Exception as cache_err:
+            print(f"Warning: Could not write schema backup: {cache_err}")
+            
         return ddl_text
     except Exception as e:
+        print(f"Spanner database connection failed: {e}")
+        # 2. Offline fallback ONLY when Spanner cannot be reached (e.g., during headless deployment builds)
+        if os.path.exists(cache_file):
+            print(f"Falling back to local schema backup: {cache_file}")
+            with open(cache_file, "r", encoding="utf-8") as f:
+                content = f.read()
+                if len(content.strip()) > 100 and "PROPERTY GRAPH" in content:
+                    return content
         raise ValueError(
-            f"Could not fetch Spanner DDL and no local cache file exists at {cache_file}. "
-            f"Error: {e}"
+            f"Could not fetch Spanner DDL and no valid local backup exists. Error: {e}"
         )
 
 # 1. 스패너에서 실제 DDL 가져오기 (자동 업데이트 및 로컬 캐시 사용)
