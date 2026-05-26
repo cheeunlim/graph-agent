@@ -36,25 +36,34 @@ class GlobalGemini(Gemini):
 def get_spanner_ddl():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     cache_file = os.path.join(dir_path, "schema.ddl")
-    if os.path.exists(cache_file):
-        print(f"Loading DDL from cache file: {cache_file}")
-        with open(cache_file, "r", encoding="utf-8") as f:
-            return f.read()
-            
-    print("Fetching DDL from Spanner (this may take a while)...")
-    cmd = [
-        "gcloud", "spanner", "databases", "ddl", "describe", DATABASE_ID,
-        f"--instance={INSTANCE_ID}", f"--project={PROJECT_ID}"
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     
-    # Save to cache
-    with open(cache_file, "w", encoding="utf-8") as f:
-        f.write(result.stdout)
+    # Try fetching fresh DDL via Spanner Client to keep it automatically updated
+    try:
+        print("Fetching fresh DDL from Spanner database (automatic update)...")
+        from .tools import get_spanner_client_and_db
+        _, database = get_spanner_client_and_db()
+        ddl_statements = database.get_ddl()
+        ddl_text = ";\n".join(ddl_statements)
         
-    return result.stdout
+        # Save/update local cache file
+        with open(cache_file, "w", encoding="utf-8") as f:
+            f.write(ddl_text)
+        print(f"Successfully updated schema cache: {cache_file}")
+        return ddl_text
+    except Exception as e:
+        print(f"Failed to fetch fresh DDL from Spanner: {e}")
+        # Fallback to local cached file
+        if os.path.exists(cache_file):
+            print(f"Loading fallback DDL from cache file: {cache_file}")
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return f.read()
+        else:
+            raise ValueError(
+                f"Could not fetch Spanner DDL and no local cache file exists at {cache_file}. "
+                f"Error: {e}"
+            )
 
-# 1. 스패너에서 실제 DDL 가져오기 (로컬 캐시파일 사용 권장)
+# 1. 스패너에서 실제 DDL 가져오기 (자동 업데이트 및 로컬 캐시 사용)
 ddl = get_spanner_ddl()
 
 # 2. 동적 스키마가 반영된 인스트럭션 생성

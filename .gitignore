@@ -11,7 +11,14 @@ __pycache__/
 # Sensitive local configurations (Custom project IDs and API Keys)
 .env
 **/.env
+*service_account.json
+**/*service_account.json
 
 # ADK (Agent Development Kit) runtime logs & caching directories
 .adk/
 *.log
+
+# Dynamically generated Spanner schema/DDL cache file
+graph_agent/schema.ddl
+
+graph_agent/schema.ddl

@@ -89,7 +89,7 @@ WITH FrequentCustomers AS (
  TierInfo AS (
      SELECT *
      FROM GRAPH_TABLE(U2G
-         MATCH (t:MembershipTier)-[:PROVIDES_BENEFIT]->(b:Benefit)
+         MATCH (t:MembershipTier)-[:HAS_BENEFIT]->(b:Benefit)
          RETURN 
             t.name AS tier_name, 
             b.description AS benefit_desc
@@ -107,7 +107,7 @@ R2GU2G AS (
         (c.total_spent >= 200 AND c.total_spent < 300 AND t.tier_name = 'SILVER') OR
         (c.total_spent < 200 AND t.tier_name = 'BRONZE')
     )
- )
+  )
 SELECT a.user_id, b.user_name, benefit_desc
 FROM orders a
 JOIN R2GU2G AS b ON a.user_id = b.user_id  
@@ -129,6 +129,8 @@ QUERY_GENERATOR_INSTRUCTION = """
 
     ### Query Generation Guidelines & Trap Avoidance:
     1. **Edge Aliasing Trap (CRITICAL):** In Spanner Graph, when the same physical table is used for multiple edge definitions, the labels in the graph might have numbers appended (e.g., `HAS_RULE_1` instead of `HAS_RULE`). Always check the DDL for the exact `LABEL` name specified in the `EDGE TABLES` section.
+       - In `U2G`, the edge `Policy -> Rule` is defined with the label `HAS_RULE_1`.
+       - In `U2G`, the edge `MembershipTier -> Benefit` is defined with the label `HAS_BENEFIT`.
     2. **Terminology Mapping:** 
        - "환불" -> `orders.status LIKE '%Returned%'`
        - "무료" -> `benefit_desc LIKE '%무료%'`

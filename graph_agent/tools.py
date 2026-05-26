@@ -22,6 +22,13 @@ if not PROJECT_ID or not INSTANCE_ID or not DATABASE_ID:
         "Please set them in your environment or .env file."
     )
 
+def get_spanner_client_and_db():
+    """Initializes and returns the Spanner client and database objects."""
+    spanner_client = spanner.Client(project=PROJECT_ID)
+    instance = spanner_client.instance(INSTANCE_ID)
+    database = instance.database(DATABASE_ID)
+    return spanner_client, database
+
 def execute_spanner_query(query: str) -> str:
     """Executes a GQL or SQL query on the Spanner database and returns the result as a JSON string.
     
@@ -29,9 +36,7 @@ def execute_spanner_query(query: str) -> str:
         query: The GQL or SQL query string to execute.
     """
     try:
-        spanner_client = spanner.Client(project=PROJECT_ID)
-        instance = spanner_client.instance(INSTANCE_ID)
-        database = instance.database(DATABASE_ID)
+        _, database = get_spanner_client_and_db()
         
         results = []
         with database.snapshot() as snapshot:
