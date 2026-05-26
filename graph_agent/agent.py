@@ -10,14 +10,14 @@ from .tools import execute_spanner_query
 from .prompts import get_instruction
 
 # Dynamically load GCP resources via environment variables
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+PROJECT_ID = os.environ.get("SPANNER_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
 INSTANCE_ID = os.environ.get("SPANNER_INSTANCE_ID")
 DATABASE_ID = os.environ.get("SPANNER_DATABASE_ID")
 
 if not PROJECT_ID or not INSTANCE_ID or not DATABASE_ID:
     missing_vars = [
         var_name for var_name, var_val in [
-            ("GOOGLE_CLOUD_PROJECT", PROJECT_ID),
+            ("SPANNER_PROJECT_ID or GOOGLE_CLOUD_PROJECT", PROJECT_ID),
             ("SPANNER_INSTANCE_ID", INSTANCE_ID),
             ("SPANNER_DATABASE_ID", DATABASE_ID)
         ] if not var_val
@@ -37,7 +37,13 @@ def get_spanner_ddl():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     cache_file = os.path.join(dir_path, "schema.ddl")
     
-    # Try fetching fresh DDL via Spanner Client to keep it automatically updated
+    # 1. Prioritize reading from the local cached DDL file to prevent Spanner metadata query explosion
+    if os.path.exists(cache_file):
+        print(f"Loading DDL from cache file: {cache_file}")
+        with open(cache_file, "r", encoding="utf-8") as f:
+            return f.read()
+            
+    # 2. Only fetch fresh DDL if cache file does not exist
     try:
         print("Fetching fresh DDL from Spanner database (automatic update)...")
         from .tools import get_spanner_client_and_db
@@ -52,17 +58,10 @@ def get_spanner_ddl():
         print(f"Successfully updated schema cache: {cache_file}")
         return ddl_text
     except Exception as e:
-        print(f"Failed to fetch fresh DDL from Spanner: {e}")
-        # Fallback to local cached file
-        if os.path.exists(cache_file):
-            print(f"Loading fallback DDL from cache file: {cache_file}")
-            with open(cache_file, "r", encoding="utf-8") as f:
-                return f.read()
-        else:
-            raise ValueError(
-                f"Could not fetch Spanner DDL and no local cache file exists at {cache_file}. "
-                f"Error: {e}"
-            )
+        raise ValueError(
+            f"Could not fetch Spanner DDL and no local cache file exists at {cache_file}. "
+            f"Error: {e}"
+        )
 
 # 1. 스패너에서 실제 DDL 가져오기 (자동 업데이트 및 로컬 캐시 사용)
 ddl = get_spanner_ddl()
