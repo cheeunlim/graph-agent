@@ -42,7 +42,8 @@ def get_spanner_ddl():
         print("Fetching fresh DDL from Spanner database (automatic update)...")
         from .tools import get_spanner_client_and_db
         _, database = get_spanner_client_and_db()
-        ddl_statements = database.get_ddl()
+        database.reload()
+        ddl_statements = database.ddl_statements
         ddl_text = ";\n".join(ddl_statements)
         
         # Save/update local cache file
